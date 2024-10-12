@@ -12,10 +12,10 @@ WIDTH, HEIGHT = 400, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 # Load images (ensure these files are in the same directory as the script)
-bird_img = pygame.image.load("pnngegg.png")
-bg_img = pygame.image.load("pnngegg(2).png")
-pipe_top_img = pygame.image.load("toppole.png")
-pipe_bottom_img = pygame.image.load("pnngegg(1).png")
+bird_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pngegg.png")
+bg_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pngegg (2).png")
+pipe_top_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\poletop.png")
+pipe_bottom_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pngegg (1).png")
 
 class Bird:
     def __init__(self):
@@ -84,11 +84,17 @@ class Game:
 
         for i, bird in enumerate(self.birds):
             if bird.alive:
-                inputs = [
-                    bird.y / HEIGHT,
-                    (bird.y - (nearest_pipe.y + nearest_pipe.height)) / HEIGHT,
-                    bird.gravity
-                ]
+                if nearest_pipe is not None:
+                    # Use actual pipe values
+                    inputs = [
+                        bird.y / HEIGHT,
+                        (bird.y - (nearest_pipe.y + nearest_pipe.height)) / HEIGHT,
+                        bird.gravity
+                    ]
+                else:
+                    # Use default values if no pipe is available
+                    inputs = [bird.y / HEIGHT, 1, bird.gravity]
+
                 output = networks[i].compute(inputs)
                 if output[0] > 0.5:
                     bird.flap()
@@ -109,6 +115,7 @@ class Game:
             self.interval = 0
 
         self.score += 1
+
 
     def display(self):
         screen.blit(bg_img, (0, 0))
