@@ -8,21 +8,27 @@ import webbrowser
 pygame.init()
 
 # Screen dimensions
-WIDTH, HEIGHT = 400, 600
+WIDTH, HEIGHT = 500,512
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 # Load images (ensure these files are in the same directory as the script)
 bird_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pngegg.png")
 bg_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pngegg (2).png")
-pipe_top_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\poletop.png")
-pipe_bottom_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pngegg (1).png")
+pipe_top_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pipetop.png")
+pipe_bottom_img = pygame.image.load("C:\VSCODE\Flappy_Bird\Flappy_Bird\images\pipebottom.png")
+bird_img = pygame.transform.scale(bird_img, (30, 25)) 
+pipe_top_img = pygame.transform.scale(pipe_top_img, (50, 300))  
+pipe_bottom_img = pygame.transform.scale(pipe_bottom_img, (50, 300))  
+
+
+FPS = 60
 
 class Bird:
     def __init__(self):
         self.x = 80
         self.y = 250
-        self.width = 40
-        self.height = 30
+        self.width = 20  # Matches resized bird image
+        self.height = 15
         self.alive = True
         self.gravity = 0
         self.velocity = 0.3
@@ -54,7 +60,7 @@ class Pipe:
         self.height = height
         self.speed = 3
         self.is_bottom = is_bottom
-
+        self.passed = False
     def update(self):
         self.x -= self.speed
 
@@ -66,16 +72,20 @@ class Game:
         self.birds = []
         self.pipes = []
         self.score = 0
-        self.spawn_interval = 90
+        self.spawn_interval = 90  # Frames between pipe spawns
         self.interval = 0
-        self.background_x = 0
 
     def start(self, networks):
         self.birds = [Bird() for _ in networks]
         self.pipes = []
         self.score = 0
+        self.interval = 0  # Reset pipe spawn interval
 
     def update(self, networks):
+        # Update pipes to move them leftward
+        for pipe in self.pipes:
+            pipe.update()
+
         nearest_pipe = None
         for pipe in self.pipes:
             if pipe.x + pipe.width > self.birds[0].x:
@@ -85,15 +95,15 @@ class Game:
         for i, bird in enumerate(self.birds):
             if bird.alive:
                 if nearest_pipe is not None:
-                    # Use actual pipe values
+                    gap_center = (nearest_pipe.y + nearest_pipe.height + 100) / 2
                     inputs = [
                         bird.y / HEIGHT,
-                        (bird.y - (nearest_pipe.y + nearest_pipe.height)) / HEIGHT,
+                        (gap_center - bird.y) / HEIGHT,
+                        nearest_pipe.x / WIDTH,
                         bird.gravity
                     ]
                 else:
-                    # Use default values if no pipe is available
-                    inputs = [bird.y / HEIGHT, 1, bird.gravity]
+                    inputs = [bird.y / HEIGHT, 1, 1, bird.gravity]
 
                 output = networks[i].compute(inputs)
                 if output[0] > 0.5:
@@ -104,44 +114,57 @@ class Game:
                     bird.alive = False
 
         self.pipes = [pipe for pipe in self.pipes if not pipe.is_out()]
+
+        # Spawn new pipes at the specified interval
         if self.interval == 0:
-            gap = 150
+            gap = 200
             pipe_y = random.randint(100, HEIGHT - 100 - gap)
             self.pipes.append(Pipe(WIDTH, 0, pipe_y, False))
             self.pipes.append(Pipe(WIDTH, pipe_y + gap, HEIGHT - pipe_y - gap, True))
 
         self.interval += 1
-        if self.interval == self.spawn_interval:
+        if self.interval >= self.spawn_interval:
             self.interval = 0
 
-        self.score += 1
+        for pipe in self.pipes:
+            if not pipe.passed and pipe.x + pipe.width < self.birds[0].x:
+                pipe.passed = True
+                self.score += 1
 
 
     def display(self):
+        # Draw background
         screen.blit(bg_img, (0, 0))
+
+        # Draw pipes
         for pipe in self.pipes:
             img = pipe_bottom_img if pipe.is_bottom else pipe_top_img
             screen.blit(img, (pipe.x, pipe.y))
 
+        # Draw birds
         for bird in self.birds:
             if bird.alive:
                 screen.blit(bird_img, (bird.x, bird.y))
 
+        # Display score
         font = pygame.font.SysFont("Arial", 20)
         score_text = font.render(f"Score: {self.score}", True, (255, 255, 255))
         screen.blit(score_text, (10, 10))
+        
         pygame.display.flip()
+
 
 class Neuroevolution:
     def __init__(self, options=None):
         self.options = {
             'activation': lambda x: 1 / (1 + np.exp(-x)),
             'randomClamped': lambda: random.uniform(-1, 1),
-            'network': [3, [5], 1],
+            'network': [4, [8, 8], 1],  
             'population': 50,
             'elitism': 0.2,
             'randomBehaviour': 0.2,
             'mutationRate': 0.1,
+            'elitism': 0.3,
             'mutationRange': 0.5,
             'historic': 0,
             'lowHistoric': False,
@@ -287,13 +310,13 @@ class Generations:
 neuroevo = Neuroevolution()
 game = Game()
 
-# Main loop for evolving generations
+
+
 while True:
     networks = neuroevo.nextGeneration()
     game.start(networks)
 
-    # Run the game with the current generation of networks
-    while any(bird.alive for bird in game.birds):
+    while any(bird.alive for bird in game.birds):  
         screen.fill((0, 0, 0))
         game.update(networks)
         game.display()
@@ -303,7 +326,6 @@ while True:
                 pygame.quit()
                 exit()
             elif event.type == pygame.KEYDOWN:
-                # Adjust game speed
                 if event.key == pygame.K_1:
                     FPS = 60  # x1 speed
                 elif event.key == pygame.K_2:
@@ -314,11 +336,15 @@ while True:
                     FPS = 300  # x5 speed
                 elif event.key == pygame.K_5:
                     FPS = 0  # Max speed
-                elif event.key == pygame.K_g:  # Open GitHub link
+                elif event.key == pygame.K_g: 
                     webbrowser.open("https://github.com/jackngammm/Flappy_Bird")
 
         if FPS > 0:
             pygame.time.Clock().tick(FPS)
         else:
-            # For max speed, run without delay
             pygame.event.pump()
+
+    print("All birds are dead. Ending the game.")
+    pygame.quit()
+    break
+
